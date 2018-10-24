@@ -1,0 +1,73 @@
+---
+title: "Extending MRW"
+output: pdf_document
+---
+
+Importing the csv we made in python
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(plm)
+library(lmtest)
+setwd('C:\\Users\\Administrator\\Documents\\personal\\mrw1992')
+df = read.csv('data\\panel_mrw.csv')
+```
+
+# Regressions
+
+The first model is the base model done in MRW. This is without the human capital variable added. 
+
+We do everything in a panel data style. The equation we estimate is:
+
+
+
+$$\log(Y_{it}/L_{it})=a_i + \alpha(1 - \alpha)log(s_{it}) - \alpha(1 + \alpha)log(n_{it} + g_{it} + \delta_{it}) + \epsilon_{it}$$
+
+Here $\alpha_i$ is our country fixed effect. #elaborate here#
+
+
+```{r warning=FALSE}
+mdl <- plm(ly ~ ls + lngd, data=df, index=c("country", "year"), model="within")
+coeftest(mdl, vcov.=function(x) vcovHC(x, type="sss"))
+implied_alpha <- mdl$coeff[1]/(1 + mdl$coeff[1])
+
+```
+
+Implied alpha turns out to be `r implied_alpha`. The implied alpha seems to be good. But there are still 2 issues- one is that the R-squared and adjusted R-sqares are too low (~.18) which means these variables can barely explain the variation in output per capita. 
+The other issue is that the absolute coefficients for $log(savings)$ and $log(n + g + d)$ don't seem to be the same, although the signs are as the Solow model predicts.
+
+```{r}
+mdl_restr = plm(ly ~ (ls_lngd), data=df, index=c("country", "year"), model="within")
+coeftest(mdl_restr, vcov.=function(x) vcovHC(x, type="sss"))
+implied_alpha <- mdl_restr$coeff[1]/(1 + mdl_restr$coeff[1])
+```
+
+The implied alpha is still very similar but if we do an F test to test whether our unrestricted and restricted models are similar, we reject the hypothesis that they are the same. Which means the restriction of the magnitude of the coefficients doesn't seem to hold.
+
+```{r}
+pFtest(mdl, mdl_restr)
+```
+
+
+# Adding Human Capital
+
+Lets see if adding human capital to our regressions changes any results.
+
+```{r}
+mdl_hc <- plm(ly ~ ls + lngd + lschool, data=df, index=c("country", "year"), model="within")
+coeftest(mdl_hc, vcov.=function(x) vcovHC(x, type="sss"))
+implied_alpha <- mdl_hc$coeff[1]/(1 + mdl_hc$coeff[1] + mdl_hc$coeff[3])
+```
+
+```{r}
+mdl_hc_restr <- plm(ly ~ ls_lngd + lsch_lngd, data=df, index=c("country", "year"), model="within")
+coeftest(mdl_hc_restr, vcov.=function(x) vcovHC(x, type="sss"))
+implied_alpha <- mdl_hc_restr$coeff[1]/(1 + mdl_hc_restr$coeff[1] + mdl_hc_restr$coeff[2])
+```
+
+Testing the two models
+
+```{r}
+pFtest(mdl_hc, mdl_hc_restr)
+```
+
+Once again, we clearly reject the null that both the models are similar, which means our restriction doesn't hold.
