@@ -1,8 +1,9 @@
 ---
 title: "Extending MRW"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
 ---
-
 Importing the csv we made in python
 
 ```{r message=FALSE, warning=FALSE, paged.print=FALSE}
@@ -16,32 +17,43 @@ df = read.csv('data\\panel_mrw.csv')
 
 The first model is the base model done in MRW. This is without the human capital variable added. 
 
-We do everything in a panel data style. The equation we estimate is:
+We do everything in a panel data style. The main equation we estimate is:
 
+$$\log(Y_{it}/L_{it})= a_0 + a_i + gt + \frac{\alpha}{(1 - \alpha)}log(s_{it}) - \frac{\alpha}{(1 + \alpha)}log(n_{it} + g_{it} + \delta_{it}) + \epsilon_{it}$$
 
+Here $\alpha_i$ is our country fixed effect. 
 
-$$\log(Y_{it}/L_{it})=a_i + \alpha(1 - \alpha)log(s_{it}) - \alpha(1 + \alpha)log(n_{it} + g_{it} + \delta_{it}) + \epsilon_{it}$$
+$\alpha_i$ is essentially our $logA(0)$ but this time we assume that it changes across countries. Which makes sense. Institutions, culture, and whatever else we assume our TFP to have is very likely to be country specific. 
 
-Here $\alpha_i$ is our country fixed effect. #elaborate here#
+Remember that in the original paper MRW assumed $logA(0) = a + \epsilon$. We simply extend this bit and decompose $a$ to $a_0 + a_i$. So our equation for $logA(0)$ becomes:
+$$ logA(0) = a_0 + a_i + \epsilon_{it} $$
+
+Additionally, in a simple cross country regression, the $gt$ term didn't matter and it turned into our constant. In a panel setting, it will matter, so we will add that into our regression as well. We will take t as the number of years since the first year we observed a country $i$.
 
 
 ```{r warning=FALSE}
-mdl <- plm(ly ~ ls + lngd, data=df, index=c("country", "year"), model="within")
+mdl <- plm(ly ~ gt + ls + lngd, data=df, index=c("country", "year"), model="within")
 coeftest(mdl, vcov.=function(x) vcovHC(x, type="sss"))
-implied_alpha <- mdl$coeff[1]/(1 + mdl$coeff[1])
-
+implied_alpha <- mdl$coeff[2]/(1 + mdl$coeff[2])
+cat("Implied alpha: ", implied_alpha)
 ```
 
 Implied alpha turns out to be `r implied_alpha`. The implied alpha seems to be good. But there are still 2 issues- one is that the R-squared and adjusted R-sqares are too low (~.18) which means these variables can barely explain the variation in output per capita. 
 The other issue is that the absolute coefficients for $log(savings)$ and $log(n + g + d)$ don't seem to be the same, although the signs are as the Solow model predicts.
 
+$gt$ seems to be highly significant in this regression.
+
 ```{r}
-mdl_restr = plm(ly ~ (ls_lngd), data=df, index=c("country", "year"), model="within")
+mdl_restr = plm(ly ~ gt + (ls_lngd), data=df, index=c("country", "year"), model="within")
 coeftest(mdl_restr, vcov.=function(x) vcovHC(x, type="sss"))
-implied_alpha <- mdl_restr$coeff[1]/(1 + mdl_restr$coeff[1])
+implied_alpha <- mdl_restr$coeff[2]/(1 + mdl_restr$coeff[2])
+cat("Implied alpha: ", implied_alpha)
 ```
 
+
 The implied alpha is still very similar but if we do an F test to test whether our unrestricted and restricted models are similar, we reject the hypothesis that they are the same. Which means the restriction of the magnitude of the coefficients doesn't seem to hold.
+
+
 
 ```{r}
 pFtest(mdl, mdl_restr)
@@ -52,16 +64,24 @@ pFtest(mdl, mdl_restr)
 
 Lets see if adding human capital to our regressions changes any results.
 
+The model differences are almost entirely similar to what changes we had made in the base model. Our main equation to estimate here becomes:
+
+$$
+log\left(\frac{Y(t)}{L(t)}\right) = a_0 + a_i + gt - \left(\frac{\alpha + \beta}{1 - \alpha - \beta}\right)log(n + g + \delta) + \left(\frac{\alpha}{1 - \alpha - \beta}\right)log(s_k) + \left(\frac{\beta}{1 - \alpha - \beta}\right)log(s_h) + \epsilon_it
+$$
+
 ```{r}
-mdl_hc <- plm(ly ~ ls + lngd + lschool, data=df, index=c("country", "year"), model="within")
+mdl_hc <- plm(ly ~ gt + ls + lngd + lschool, data=df, index=c("country", "year"), model="within")
 coeftest(mdl_hc, vcov.=function(x) vcovHC(x, type="sss"))
 implied_alpha <- mdl_hc$coeff[1]/(1 + mdl_hc$coeff[1] + mdl_hc$coeff[3])
+cat("Implied alpha: ", implied_alpha)
 ```
 
 ```{r}
-mdl_hc_restr <- plm(ly ~ ls_lngd + lsch_lngd, data=df, index=c("country", "year"), model="within")
+mdl_hc_restr <- plm(ly ~ gt + ls_lngd + lsch_lngd, data=df, index=c("country", "year"), model="within")
 coeftest(mdl_hc_restr, vcov.=function(x) vcovHC(x, type="sss"))
 implied_alpha <- mdl_hc_restr$coeff[1]/(1 + mdl_hc_restr$coeff[1] + mdl_hc_restr$coeff[2])
+cat("Implied alpha: ", implied_alpha)
 ```
 
 Testing the two models
@@ -70,4 +90,19 @@ Testing the two models
 pFtest(mdl_hc, mdl_hc_restr)
 ```
 
-Once again, we clearly reject the null that both the models are similar, which means our restriction doesn't hold.
+Once again, we clearly reject the null that both the models are similar, which means our restriction doesn't hold. Our implied alpha values weren't even close to what we should expect once we added in human capital.
+
+## Classic versus Augmented
+The results from the original MRW quickly turned around once we jumped to a panel setting. A positive outcome here (for the Solow model) was that we got the implied $\alpha$ values quite easily in the base regression itself. Adding human capital only made the equation worse.
+
+Ofcourse, every equation estimated here is filled to the brim with endogeneity issues. But it is very likely that human capital and general country fixed effects are very highly correlated, which kind of explains these results.
+
+But we still have the low R sqaures to deal with in the original regressions. It's not the biggest concern, but it doesn mean that we have a long way to go from Solow to getting to a point where we explain a lot of cross country GDP differences.
+
+# Rate of Convergence
+
+Let's go ahead and try and estimate the rate of convergence in a Solow model. 
+
+## Conclusion
+
+Regressions here have huge issues but nothing which wasn't there in the original.
