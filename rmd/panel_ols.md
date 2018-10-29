@@ -10,7 +10,8 @@ Set the working directory before we start anything
 
 Importing the csv we made in python
 
-```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+
+```r
 library(dplyr)
 library(plm)
 library(lmtest)
@@ -37,23 +38,62 @@ $$ logA(0) = a_0 + a_i + \epsilon_{it} $$
 Additionally, in a simple cross country regression, the $gt$ term didn't matter and it turned into our constant. In a panel setting, it will matter, so we will add that into our regression as well. We will take t as the number of years since the first year we observed a country $i$.
 
 
-```{r warning=FALSE}
+
+```r
 mdl <- plm(ly ~ gt + ls + lngd, data=df, index=c("country", "year"), model="within")
 coeftest(mdl, vcov.=function(x) vcovHC(x, type="sss"))
+```
+
+```
+## 
+## t test of coefficients:
+## 
+##       Estimate Std. Error t value  Pr(>|t|)    
+## gt    0.144183   0.041387  3.4837 0.0004986 ***
+## ls    0.441914   0.045646  9.6813 < 2.2e-16 ***
+## lngd -0.335402   0.063407 -5.2897 1.276e-07 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
+```r
 implied_alpha <- mdl$coeff[2]/(1 + mdl$coeff[2])
 cat("Implied alpha: ", implied_alpha)
 ```
 
-Implied alpha turns out to be `r implied_alpha`. The implied alpha seems to be good. But there are still 2 issues- one is that the R-squared and adjusted R-sqares are too low (~.18) which means these variables can barely explain the variation in output per capita. 
+```
+## Implied alpha:  0.3064771
+```
+
+Implied alpha turns out to be 0.3064771. The implied alpha seems to be good. But there are still 2 issues- one is that the R-squared and adjusted R-sqares are too low (~.18) which means these variables can barely explain the variation in output per capita. 
 The other issue is that the absolute coefficients for $log(savings)$ and $log(n + g + d)$ don't seem to be the same, although the signs are as the Solow model predicts.
 
 $gt$ seems to be highly significant in this regression.
 
-```{r}
+
+```r
 mdl_restr = plm(ly ~ gt + (ls_lngd), data=df, index=c("country", "year"), model="within")
 coeftest(mdl_restr, vcov.=function(x) vcovHC(x, type="sss"))
+```
+
+```
+## 
+## t test of coefficients:
+## 
+##           Estimate Std. Error t value Pr(>|t|)    
+## gt      -0.0062015  0.0104248 -0.5949   0.5519    
+## ls_lngd  0.4166679  0.0450781  9.2432   <2e-16 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
+```r
 implied_alpha <- mdl_restr$coeff[2]/(1 + mdl_restr$coeff[2])
 cat("Implied alpha: ", implied_alpha)
+```
+
+```
+## Implied alpha:  0.2941182
 ```
 
 
@@ -61,8 +101,18 @@ The implied alpha is still very similar but if we do an F test to test whether o
 
 
 
-```{r}
+
+```r
 pFtest(mdl, mdl_restr)
+```
+
+```
+## 
+## 	F test for individual effects
+## 
+## data:  ly ~ gt + ls + lngd
+## F = 1.6784, df1 = 340, df2 = 5139, p-value = 7.026e-13
+## alternative hypothesis: significant effects
 ```
 
 
@@ -76,24 +126,75 @@ $$
 log\left(\frac{Y(t)}{L(t)}\right) = a_0 + a_i + gt - \left(\frac{\alpha + \beta}{1 - \alpha - \beta}\right)log(n + g + \delta) + \left(\frac{\alpha}{1 - \alpha - \beta}\right)log(s_k) + \left(\frac{\beta}{1 - \alpha - \beta}\right)log(s_h) + \epsilon_it
 $$
 
-```{r}
+
+```r
 mdl_hc <- plm(ly ~ gt + ls + lngd + lschool, data=df, index=c("country", "year"), model="within")
 coeftest(mdl_hc, vcov.=function(x) vcovHC(x, type="sss"))
+```
+
+```
+## 
+## t test of coefficients:
+## 
+##          Estimate Std. Error t value Pr(>|t|)    
+## gt      -0.030842   0.019142 -1.6112   0.1072    
+## ls       0.022530   0.018415  1.2235   0.2212    
+## lngd     0.016265   0.025081  0.6485   0.5167    
+## lschool  4.129583   0.135291 30.5238   <2e-16 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
+```r
 implied_alpha <- mdl_hc$coeff[1]/(1 + mdl_hc$coeff[1] + mdl_hc$coeff[3])
 cat("Implied alpha: ", implied_alpha)
 ```
 
-```{r}
+```
+## Implied alpha:  -0.03129875
+```
+
+
+```r
 mdl_hc_restr <- plm(ly ~ gt + ls_lngd + lsch_lngd, data=df, index=c("country", "year"), model="within")
 coeftest(mdl_hc_restr, vcov.=function(x) vcovHC(x, type="sss"))
+```
+
+```
+## 
+## t test of coefficients:
+## 
+##           Estimate Std. Error t value  Pr(>|t|)    
+## gt        0.270454   0.044499  6.0778 1.307e-09 ***
+## ls_lngd   0.369371   0.040427  9.1368 < 2.2e-16 ***
+## lsch_lngd 0.611919   0.067798  9.0257 < 2.2e-16 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
+```r
 implied_alpha <- mdl_hc_restr$coeff[1]/(1 + mdl_hc_restr$coeff[1] + mdl_hc_restr$coeff[2])
 cat("Implied alpha: ", implied_alpha)
 ```
 
+```
+## Implied alpha:  0.1649284
+```
+
 Testing the two models
 
-```{r}
+
+```r
 pFtest(mdl_hc, mdl_hc_restr)
+```
+
+```
+## 
+## 	F test for individual effects
+## 
+## data:  ly ~ gt + ls + lngd + lschool
+## F = 14898, df1 = 1, df2 = 5138, p-value < 2.2e-16
+## alternative hypothesis: significant effects
 ```
 
 Once again, we clearly reject the null that both the models are similar, which means our restriction doesn't hold. Our implied alpha values weren't even close to what we should expect once we added in human capital.
@@ -117,14 +218,34 @@ $$
 
 Let's run a normal OLS routine to estimate this first and see how the results are.
 
-```{r}
+
+```r
 mdl_dp <- plm(ly ~ lag(ly, 1) + ls + lngd,
 	data=df, index=c("country", "year"), model="within")
 coeftest(mdl_dp, vcov.=function(x) vcovHC(x, type="sss"))
+```
+
+```
+## 
+## t test of coefficients:
+## 
+##             Estimate Std. Error  t value  Pr(>|t|)    
+## lag(ly, 1) 0.9946188  0.0014784 672.7785 < 2.2e-16 ***
+## ls         0.0148226  0.0021767   6.8097 1.092e-11 ***
+## lngd       0.0400142  0.0025621  15.6180 < 2.2e-16 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
+```r
 cat( "implied lambda: ",-log(coef(mdl_dp)[1]+ 1))
 ```
 
-Alright, a straightforward panel regression with fixed effects gives us effect that a country i in period t with a growth rate x tends to grow `r coef(mdl_dp)[1]` percent faster in t+1. Not a point in favour of Solow but let's try to at least try and extract out the endogeneity here.
+```
+## implied lambda:  -0.6904529
+```
+
+Alright, a straightforward panel regression with fixed effects gives us effect that a country i in period t with a growth rate x tends to grow 0.9946188 percent faster in t+1. Not a point in favour of Solow but let's try to at least try and extract out the endogeneity here.
 
 Since this is a classic dynamic panel model, we run into the endogeneity problem if we do a fixed effects regression. The main issue is, once we try to estimate a fixed effects regression, the within difference of $y_{it-1}$ will be correlated to $\epsilon_{it}$. 
 
@@ -132,12 +253,56 @@ Hence we try an apply the Arrellano-Bond estimator to get a good estimate of the
 
 The Arrellano-Bond estimator uses all lagged values of the first difference of y as instruments for the first difference of y.
 
-```{r}
+
+```r
 mdl_ab <- pgmm(dynformula(ly~ls + lngd, lag = list(1, 0, 0)),
 	 data = df, index=c("country", "year"), 
 	 effect = "twoways", model = "twostep",
 	 gmm.inst = ~ly, lag.gmm = list(c(1:15)))
+```
+
+```
+## Warning in pgmm(dynformula(ly ~ ls + lngd, lag = list(1, 0, 0)), data =
+## df, : the second-step matrix is singular, a general inverse is used
+```
+
+```r
 summary(mdl_ab, robust = TRUE)
+```
+
+```
+## Warning in vcovHC.pgmm(object): a general inverse is used
+```
+
+```
+## Twoways effects Two steps model
+## 
+## Call:
+## pgmm(formula = dynformula(ly ~ ls + lngd, lag = list(1, 0, 0)), 
+##     data = df, effect = "twoways", model = "twostep", index = c("country", 
+##         "year"), gmm.inst = ~ly, lag.gmm = list(c(1:15)))
+## 
+## Unbalanced Panel: n = 116, T = 22-63, N = 5721
+## 
+## Number of Observations Used: 4786
+## 
+## Residuals:
+##       Min.    1st Qu.     Median       Mean    3rd Qu.       Max. 
+## -0.4686751 -0.0096214  0.0000000  0.0007452  0.0108884  0.6271665 
+## 
+## Coefficients:
+##              Estimate Std. Error z-value  Pr(>|z|)    
+## lag(ly, 1)  0.7915997  0.1248862  6.3386 2.319e-10 ***
+## ls         -0.0026122  0.0025167 -1.0380    0.2993    
+## lngd        0.0362218  0.0042666  8.4896 < 2.2e-16 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Sargan test: chisq(823) = 72.22324 (p-value = 1)
+## Autocorrelation test (1): normal = -3.603741 (p-value = 0.00031367)
+## Autocorrelation test (2): normal = -2.396614 (p-value = 0.016547)
+## Wald test for coefficients: chisq(3) = 78.83623 (p-value = < 2.22e-16)
+## Wald test for time dummies: chisq(61) = 556.4955 (p-value = < 2.22e-16)
 ```
 
 Some notes about the Arellano-Bond estimator which should be noted:
@@ -146,11 +311,16 @@ Some notes about the Arellano-Bond estimator which should be noted:
 
 From here, we can go ahead and find out what the implied $\lambda$ value is.
 
-```{r}
+
+```r
 implied_lambda <- -log(coef(mdl_ab)[1] + 1)
 cat("Implied Lambda: ", implied_lambda)
 ```
-The implied lambda we get is `r implied_lambda`. The negative rate is definitely peculiar but that it's negative isn't surprising at this point honestly. The coefficient of our estimate for $t_{it-1} was positive, which means countries which have a high GDP in period t tend to have a `r coef(mdl_ab)[1] * 100` higher GDP the next year. This is not consistent for the Solow model (remember this is inspite of controllng for savings). This is not evidence in favour of conditional convergence.
+
+```
+## Implied Lambda:  -0.5831089
+```
+The implied lambda we get is -0.5831089. The negative rate is definitely peculiar but that it's negative isn't surprising at this point honestly. The coefficient of our estimate for $t_{it-1} was positive, which means countries which have a high GDP in period t tend to have a 79.1599726 higher GDP the next year. This is not consistent for the Solow model (remember this is inspite of controllng for savings). This is not evidence in favour of conditional convergence.
 
 One thing to note is that we didn't use human capital here. Let's include that and see how well it goes. Once again, following Islam (1995), the equation we will try and estimate is:
 
@@ -160,23 +330,97 @@ $$
 
 Lets do the standard OLS first:
 
-```{r}
+
+```r
 mdl_dphc <- plm(ly ~ lag(ly, 1) + ls + lngd + lschool,
 	data=df, index=c("country", "year"), model="within")
 coeftest(mdl_dphc, vcov.=function(x) vcovHC(x, type="sss"))
+```
+
+```
+## 
+## t test of coefficients:
+## 
+##             Estimate Std. Error  t value  Pr(>|t|)    
+## lag(ly, 1) 0.9854910  0.0037543 262.4985 < 2.2e-16 ***
+## ls         0.0138784  0.0021965   6.3184 2.869e-10 ***
+## lngd       0.0399173  0.0025532  15.6341 < 2.2e-16 ***
+## lschool    0.0472583  0.0174600   2.7067  0.006819 ** 
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
+```r
 -log(coef(mdl_dphc)[1]+ 1)
+```
+
+```
+## lag(ly, 1) 
+## -0.6858662
 ```
 
 The coefficient of our lagged $y_i$ doesnt change much from our previous standard OLS. Lets see if Arellano-Bond will yield any different results
 
-```{r}
+
+```r
 mdl_abhc <- pgmm(dynformula(ly~ls + lngd + lschool, lag = list(1, 0, 0, 0)),
 	 data = df, index=c("country", "year"), 
 	 effect = "twoways", model = "twostep",
 	 gmm.inst = ~ly, lag.gmm = list(c(1:15)))
+```
+
+```
+## Warning in pgmm(dynformula(ly ~ ls + lngd + lschool, lag = list(1, 0, 0, :
+## the second-step matrix is singular, a general inverse is used
+```
+
+```r
 summary(mdl_abhc, robust = TRUE)
+```
+
+```
+## Warning in vcovHC.pgmm(object): a general inverse is used
+```
+
+```
+## Twoways effects Two steps model
+## 
+## Call:
+## pgmm(formula = dynformula(ly ~ ls + lngd + lschool, lag = list(1, 
+##     0, 0, 0)), data = df, effect = "twoways", model = "twostep", 
+##     index = c("country", "year"), gmm.inst = ~ly, lag.gmm = list(c(1:15)))
+## 
+## Unbalanced Panel: n = 116, T = 22-63, N = 5721
+## 
+## Number of Observations Used: 4786
+## 
+## Residuals:
+##       Min.    1st Qu.     Median       Mean    3rd Qu.       Max. 
+## -0.4659340 -0.0092681  0.0000000  0.0006192  0.0108849  0.6252824 
+## 
+## Coefficients:
+##              Estimate Std. Error z-value  Pr(>|z|)    
+## lag(ly, 1)  0.7745781  0.1313189  5.8985 3.669e-09 ***
+## ls         -0.0028651  0.0026651 -1.0751    0.2824    
+## lngd        0.0352224  0.0044390  7.9347 2.111e-15 ***
+## lschool     0.8201699  0.9269695  0.8848    0.3763    
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Sargan test: chisq(823) = 71.35621 (p-value = 1)
+## Autocorrelation test (1): normal = -3.460823 (p-value = 0.00053853)
+## Autocorrelation test (2): normal = -2.374084 (p-value = 0.017593)
+## Wald test for coefficients: chisq(4) = 70.15946 (p-value = 2.1005e-14)
+## Wald test for time dummies: chisq(61) = 521.0322 (p-value = < 2.22e-16)
+```
+
+```r
 implied_lambda <- -log(coef(mdl_abhc)[1] + 1)
 cat("Implied Lambda: ", implied_lambda)
+```
+
+```
+## Implied Lambda:  -0.5735627
 ```
 Now our results again doesn't change MUCH. The rate of convergence is still negative and we still get the rate that a higher GDP increases future growth rate. But what's interesting here is that adding human capital didn't do anything to our estimates. The coefficient for human capital is significant (at the 5% level) in our standard OLS and adding human capital decreased our estimate for lagged gdp.
 
