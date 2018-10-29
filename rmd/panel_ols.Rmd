@@ -1,12 +1,11 @@
 ---
 title: "Extending MRW"
-output:
-  html_document:
-    df_print: paged
+output: html_document
 ---
 Importing the csv we made in python
 
 ```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(dplyr)
 library(plm)
 library(lmtest)
 setwd('C:\\Users\\Administrator\\Documents\\personal\\mrw1992')
@@ -102,6 +101,34 @@ But we still have the low R sqaures to deal with in the original regressions. It
 # Rate of Convergence
 
 Let's go ahead and try and estimate the rate of convergence in a Solow model. 
+
+The equation that we will try and estimate is (adapted from Islam, 1995):
+
+$$
+\log(y_{it}) = (1 - e^{-\lambda*\tau})\frac{\alpha}{1-\alpha} - (1 - e^){-\lambda * \tau}\frac{\alpha}{1 - \alpha}\log(n + g + \delta) + e^{-\lambda * \tau} \log(y_{i(t-1)}) + (1 - e^{- \lambda \tau})\log(A(0)) + g(t_2 - e^{-\lambda\tau}t_1) 
+$$
+
+Since this is a classic dynamic panel model, we run into the endogeneity problem if we do a fixed effects regression. The main issue is, once we try to estimate a fixed effects regression, the first difference of $y_{it-1}$ will be correlated to $\epsilon_{it}$. 
+
+Hence we try an apply the Arrellano-Bond difference estimator to get a good estimate of the lag of y. 
+
+The Arrellano-Bond estimator uses all lagged values of the first difference of y as instruments for the first difference of y.
+
+```{r}
+mdl_ab <- pgmm(dynformula(ly~ls + lngd, lag = list(1, 0, 0)),
+	 data = df, index=c("country", "year"), 
+	 effect = "twoways", model = "twostep",
+	 gmm.inst = ~ly, lag.gmm = list(c(1:99)))
+summary(mdl_ab, robust = TRUE)
+```
+
+Some notes about the Arrellano-Bond estimator which should be noted:
+1. It assumes exogeneity of the lag of y_{it-k} for k>=2 in this case. This is a fairly strong assumption, but it is (ever so slightly) better than doing a straightforward regression without any internal instruments. The results are believable to the extent that we believe $E(y_{i, t-k}\epsilon_{i,t} | X) = 0 for k>=1.
+2. The test of overidentifying restrictions is valid (we don't reject the null that the instruments are exogenous). It isn't definitive proof of exogeneity though (the high p value suggests that we may simply not have any statistical power to say anything in the test here.)
+
+From here, we can go ahead and find out what the implied $\lambda$ value is.
+
+### need to calculate lambda here
 
 ## Conclusion
 
