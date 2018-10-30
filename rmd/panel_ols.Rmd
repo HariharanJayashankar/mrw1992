@@ -1,8 +1,8 @@
 ---
 title: "Extending MRW"
-output: 
-  html_document:
-    keep_md: yes
+output:
+  github_document:
+    pandoc_args: --webtex
 ---
 
 Set the working directory before we start anything
@@ -14,22 +14,21 @@ Importing the csv we made in python
 library(dplyr)
 library(plm)
 library(lmtest)
-library(dynpanel)
-setwd("C:\\Users\\Hariharan\\Documents\\replications\\mrw1992")
+setwd("C:\\Users\\Administrator\\Documents\\personal\\mrw1992")
 df = read.csv('data\\panel_mrw.csv')
 ```
 
 # Regressions
 
-The first model is the base model done in MRW. This is without the human capital variable added. 
+The first model is the base model done in MRW. This is without the human capital variable added.
 
 We do everything in a panel data style. The main equation we estimate is:
 
 $$\log(Y_{it}/L_{it})= a_0 + a_i + gt + \frac{\alpha}{(1 - \alpha)}log(s_{it}) - \frac{\alpha}{(1 + \alpha)}log(n_{it} + g_{it} + \delta_{it}) + \epsilon_{it}$$
 
-Here $\alpha_i$ is our country fixed effect. 
+Here $\alpha_i$ is our country fixed effect.
 
-$\alpha_i$ is essentially our $logA(0)$ but this time we assume that it changes across countries. Which makes sense. Institutions, culture, and whatever else we assume our TFP to have is very likely to be country specific. 
+$\alpha_i$ is essentially our $logA(0)$ but this time we assume that it changes across countries. Which makes sense. Institutions, culture, and whatever else we assume our TFP to have is very likely to be country specific.
 
 Remember that in the original paper MRW assumed $logA(0) = a + \epsilon$. We simply extend this bit and decompose $a$ to $a_0 + a_i$. So our equation for $logA(0)$ becomes:
 $$ logA(0) = a_0 + a_i + \epsilon_{it} $$
@@ -44,7 +43,7 @@ implied_alpha <- mdl$coeff[2]/(1 + mdl$coeff[2])
 cat("Implied alpha: ", implied_alpha)
 ```
 
-Implied alpha turns out to be `r implied_alpha`. The implied alpha seems to be good. But there are still 2 issues- one is that the R-squared and adjusted R-sqares are too low (~.18) which means these variables can barely explain the variation in output per capita. 
+Implied alpha turns out to be `r implied_alpha`. The implied alpha seems to be good. But there are still 2 issues- one is that the R-squared and adjusted R-sqares are too low (~.18) which means these variables can barely explain the variation in output per capita.
 The other issue is that the absolute coefficients for $log(savings)$ and $log(n + g + d)$ don't seem to be the same, although the signs are as the Solow model predicts.
 
 $gt$ seems to be highly significant in this regression.
@@ -107,12 +106,12 @@ But we still have the low R sqaures to deal with in the original regressions. It
 
 # Rate of Convergence
 
-Let's go ahead and try and estimate the rate of convergence in a Solow model. 
+Let's go ahead and try and estimate the rate of convergence in a Solow model.
 
 The equation that we will try and estimate is (adapted from Islam, 1995). The equation is a bit different because Islam points out the MRW get their equations by using output per effective labour but in practice just use the usual output per capita. Getting an equation which has output per capita on the LHS is inevitably going to put $f(A)$ on the right hand side, where f is some function who's domain is A:
 
 $$
-\log(y_{it}) = (1 - e^{-\lambda*\tau})\frac{\alpha}{1-\alpha} - (1 - e^){-\lambda * \tau}\frac{\alpha}{1 - \alpha}\log(n + g + \delta) + e^{-\lambda * \tau} \log(y_{i(t-1)}) + (1 - e^{- \lambda \tau})\log(A(0)) + g(t_2 - e^{-\lambda\tau}t_1) 
+\log(y_{it}) = (1 - e^{-\lambda*\tau})\frac{\alpha}{1-\alpha} - (1 - e^){-\lambda * \tau}\frac{\alpha}{1 - \alpha}\log(n + g + \delta) + e^{-\lambda * \tau} \log(y_{i(t-1)}) + (1 - e^{- \lambda \tau})\log(A(0)) + g(t_2 - e^{-\lambda\tau}t_1)
 $$
 
 Let's run a normal OLS routine to estimate this first and see how the results are.
@@ -126,24 +125,19 @@ cat( "implied lambda: ",-log(coef(mdl_dp)[1]+ 1))
 
 Alright, a straightforward panel regression with fixed effects gives us effect that a country i in period t with a growth rate x tends to grow `r coef(mdl_dp)[1]` percent faster in t+1. Not a point in favour of Solow but let's try to at least try and extract out the endogeneity here.
 
-Since this is a classic dynamic panel model, we run into the endogeneity problem if we do a fixed effects regression. The main issue is, once we try to estimate a fixed effects regression, the within difference of $y_{it-1}$ will be correlated to $\epsilon_{it}$. 
+Since this is a classic dynamic panel model, we run into the endogeneity problem if we do a fixed effects regression. The main issue is, once we try to estimate a fixed effects regression, the within difference of $y_{it-1}$ will be correlated to $\epsilon_{it}$.
 
-Hence we try an apply the Arrellano-Bond estimator to get a good estimate of the lag of y. 
+Hence we try an apply the Arrellano-Bond estimator to get a good estimate of the lag of y.
 
 The Arrellano-Bond estimator uses all lagged values of the first difference of y as instruments for the first difference of y.
 
 ```{r}
 mdl_ab <- pgmm(dynformula(ly~ls + lngd, lag = list(1, 0, 0)),
-	 data = df, index=c("country", "year"), 
+	 data = df, index=c("country", "year"),
 	 effect = "twoways", model = "twostep",
 	 gmm.inst = ~ly, lag.gmm = list(c(1:15)))
 summary(mdl_ab, robust = TRUE)
 ```
-
-Some notes about the Arellano-Bond estimator which should be noted:
-1. It assumes exogeneity of the lag of y_{it-k} for k>=2 in this case. This is a fairly strong assumption, but it is (ever so slightly) better than doing a straightforward regression without any internal instruments. The results are believable to the extent that we believe $E(y_{i, t-k}\epsilon_{i,t} | X) = 0 for k>=1.
-2. The test of overidentifying restrictions is valid (we don't reject the null that the instruments are exogenous). It isn't definitive proof of exogeneity though (the high p value suggests that we may simply not have any statistical power to say anything in the test here.)
-
 From here, we can go ahead and find out what the implied $\lambda$ value is.
 
 ```{r}
@@ -155,7 +149,7 @@ The implied lambda we get is `r implied_lambda`. The negative rate is definitely
 One thing to note is that we didn't use human capital here. Let's include that and see how well it goes. Once again, following Islam (1995), the equation we will try and estimate is:
 
 $$
-\log(y_{it}) = (1 - e^{-\lambda*\tau})\frac{\alpha}{1-\alpha} - (1 - e^){-\lambda * \tau}\frac{\alpha}{1 - \alpha}\log(n + g + \delta) + e^{-\lambda * \tau} \log(y_{i(t-1)}) + (1 - e^{-\lambda\tau})\frac{\phi}{1 - \alpha}log(h^*) + (1 - e^{- \lambda \tau})\log(A(0)) + g(t_2 - e^{-\lambda\tau}t_1) 
+\log(y_{it}) = (1 - e^{-\lambda*\tau})\frac{\alpha}{1-\alpha} - (1 - e^){-\lambda * \tau}\frac{\alpha}{1 - \alpha}\log(n + g + \delta) + e^{-\lambda * \tau} \log(y_{i(t-1)}) + (1 - e^{-\lambda\tau})\frac{\phi}{1 - \alpha}log(h^\*) + (1 - e^{- \lambda \tau})\log(A(0)) + g(t_2 - e^{-\lambda\tau}t_1)
 $$
 
 Lets do the standard OLS first:
@@ -171,7 +165,7 @@ The coefficient of our lagged $y_i$ doesnt change much from our previous standar
 
 ```{r}
 mdl_abhc <- pgmm(dynformula(ly~ls + lngd + lschool, lag = list(1, 0, 0, 0)),
-	 data = df, index=c("country", "year"), 
+	 data = df, index=c("country", "year"),
 	 effect = "twoways", model = "twostep",
 	 gmm.inst = ~ly, lag.gmm = list(c(1:15)))
 summary(mdl_abhc, robust = TRUE)
@@ -180,9 +174,17 @@ cat("Implied Lambda: ", implied_lambda)
 ```
 Now our results again doesn't change MUCH. The rate of convergence is still negative and we still get the rate that a higher GDP increases future growth rate. But what's interesting here is that adding human capital didn't do anything to our estimates. The coefficient for human capital is significant (at the 5% level) in our standard OLS and adding human capital decreased our estimate for lagged gdp.
 
-Once we came to the Arellano-Bond estimator, human capital really lost it's significance along with our savings rate. 
+Once we came to the Arellano-Bond estimator, human capital really lost it's significance along with our savings rate.
 
 The third fact here is that the arellano bond estimate without human capital didn't seem all that different from our arellano bond estimate with human capital. This means that human capital is significantly correlated with lagged y. (Remember that when going through Arellano-Bond we also use the other control variables as instruments for our endogenous variables, which means we use human capital to help predict the lagged GDP).
+
+Some random notes about the Arellano-Bond estimator which should be noted:
+1. It assumes exogeneity of the lag of y_{it-k} for k>=2 in this case. This is a fairly strong assumption, but it is (ever so slightly) better than doing a straightforward regression without any internal instruments. The results are believable to the extent that we believe $E(y_{i, t-k}\epsilon_{i,t} | X) = 0 for k>=1.
+2. The test of overidentifying restrictions is valid (we don't reject the null that the instruments are exogenous). It isn't definitive proof of exogeneity though (the high p value suggests that we may simply not have any statistical power to say anything in the test here.)
+3. It's really key to note here that theoretically, the reason why we can start the instruments from just the second lag of $y_i$ is that we assume $E(\epsilon_{it} \epsilon_{it-1})$ for some time period t. This translates to there being no persistance in shocks. This is unlikely to be true (it's hard to imagine a big shock like a bank run for example, happening in a year not persisting to the next year). But we could modify this assumption, and all it would require us to do is start the instruments from an earlier lag.
+4. Point 3 leads nicely into how the Arellano Bond estimate requires that we be in the Goldilox zone of not our lags being strong enough to predict our endogenous variable, but too much correlation runs the risk of the instrument not satisfying the exclusion restriction. This is obviously present in normal IV estimation as well, but in this case it is much more persistent since we only use the lag of the endogenous variable as the instrument. We kind of have to choose a time period which isn't too far away as to not be related to our endogenous variable but not close enough to not satisfy the exclusion restriction.
+
+Additionally, the limit of using instruments only till 15 lags was arbitrary. Using all potential lags was taking too long to compute but ideally one would go through all posibilities and see how the estimate and identification tests change through instruments.
 
 
 ## Conclusion
